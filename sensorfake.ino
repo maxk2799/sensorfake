@@ -33,6 +33,12 @@ uint8_t lastBroadcast = 100;
 float speedMps = 2.1;
 float lastSpeed = 2.1;
 uint32_t distanceTenths = 0;
+bool walkMode = false;
+float walkCenter = 125.0;
+float walkDrift = 0.0;
+const int bootButtonPin = 0;
+int lastButtonState = HIGH;
+unsigned long lastButtonChange = 0;
 
 float clampf(float v, float lo, float hi) {
   if (v < lo) return lo;
@@ -53,8 +59,13 @@ float hrToSpeed(float bpm) {
   return 3.28 + (bpm - 170.0) * 0.0193;
 }
 
+float hrToWalkSpeed(float bpm) {
+  return clampf(1.38 + (bpm - 118.0) * 0.022, 1.30, 1.80);
+}
+
 void startNewSession() {
   randomSeed(esp_random() ^ (uint32_t)millis() ^ (uint32_t)micros());
+  walkMode = false;
 
   startHr = random(90, 111);
   warmupPeak = random(140, 152);
@@ -93,6 +104,77 @@ void startNewSession() {
   Serial.println((int)sessionMax);
 }
 
+void startWalkSession() {
+  randomSeed(esp_random() ^ (uint32_t)millis() ^ (uint32_t)micros());
+  walkMode = true;
+
+  startHr = clampf(lastHr, 90.0, 140.0);
+  walkCenter = random(123, 128);
+  walkDrift = 0.0;
+  sessionMax = 132.0;
+  warmupPeak = walkCenter;
+
+  warmupEnd = random(120, 241);
+  buildEnd = warmupEnd;
+  effortEnd = random(2340, 2521);
+  peakAt = effortEnd + 1000;
+  peakLen = 0;
+
+  hr = startHr;
+  lastHr = startHr;
+  micro = 0.0;
+  sessionSeconds = 0;
+  spikeAge = 0;
+  spikeLen = 0;
+  spikeAmp = 0.0;
+  spikeCooldown = random(40, 90);
+  sameStreak = 0;
+  lastBroadcast = (uint8_t)(startHr + 0.5);
+  speedMps = hrToWalkSpeed(startHr);
+  lastSpeed = speedMps;
+  distanceTenths = 0;
+  previousMillis = 0;
+
+  Serial.print("Walk session | hr=");
+  Serial.print((int)walkCenter);
+  Serial.print(" duration=");
+  Serial.print(effortEnd / 60);
+  Serial.println("m");
+}
+
+void handleSerial() {
+  static String buf;
+  while (Serial.available()) {
+    char c = (char)Serial.read();
+    if (c == '\n' || c == '\r') {
+      buf.trim();
+      buf.toLowerCase();
+      if (buf == "walk") {
+        startWalkSession();
+      } else if (buf == "run") {
+        startNewSession();
+      } else if (buf.length() > 0) {
+        Serial.println("Commands: walk | run");
+      }
+      buf = "";
+    } else if (buf.length() < 32) {
+      buf += c;
+    }
+  }
+}
+
+void handleButton() {
+  int state = digitalRead(bootButtonPin);
+  if (state != lastButtonState && millis() - lastButtonChange > 50) {
+    lastButtonChange = millis();
+    lastButtonState = state;
+    if (state == LOW && walkMode) {
+      Serial.println("BOOT button pressed, switching to run");
+      startNewSession();
+    }
+  }
+}
+
 #define heartRateService BLEUUID((uint16_t)0x180D)
 #define rscService BLEUUID((uint16_t)0x1814)
 BLEUUID heartRateCharUUID((uint16_t)0x2A37);
@@ -102,7 +184,8 @@ BLEUUID rscFeatUUID((uint16_t)0x2A54);
 class MyServerCallbacks : public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
       deviceConnected = true;
-      startNewSession();
+      if (walkMode) startWalkSession();
+      else startNewSession();
       Serial.println("App connected!");
     }
     void onDisconnect(BLEServer* pServer) {
@@ -114,7 +197,8 @@ class MyServerCallbacks : public BLEServerCallbacks {
 
 void setup() {
   Serial.begin(115200);
-  startNewSession();
+  pinMode(bootButtonPin, INPUT_PULLUP);
+  startWalkSession();
 
   BLEDevice::init("Polar Sense 1234567");
 
@@ -148,9 +232,13 @@ void setup() {
   pServer->getAdvertising()->start();
 
   Serial.println("Broadcasting fake Polar device...");
+  Serial.println("Commands: walk | run");
 }
 
 void loop() {
+  handleSerial();
+  handleButton();
+
   if (deviceConnected) {
     unsigned long currentMillis = millis();
 
@@ -161,7 +249,42 @@ void loop() {
       float baseline = startHr;
       bool inPeak = false;
 
-      if (sessionSeconds <= warmupEnd) {
+      if (walkMode) {
+        if (sessionSeconds <= warmupEnd) {
+          float t = (float)sessionSeconds / (float)warmupEnd;
+          baseline = startHr + (walkCenter - startHr) * smoothstep(t);
+        } else if (sessionSeconds <= effortEnd) {
+          walkDrift += random(-8, 9) / 100.0;
+          walkDrift = clampf(walkDrift, -4.0, 4.0);
+          baseline = walkCenter + walkDrift;
+
+          if (spikeCooldown > 0) spikeCooldown--;
+          if (spikeLen == 0 && spikeCooldown == 0 && random(0, 100) < 3) {
+            spikeAmp = random(2, 5);
+            spikeLen = random(12, 25);
+            spikeAge = 0;
+            spikeCooldown = spikeLen + random(60, 160);
+          }
+          if (spikeLen > 0) {
+            spikeAge++;
+            float st = (float)spikeAge / (float)spikeLen;
+            if (st < 0.4) baseline += spikeAmp * (st / 0.4);
+            else baseline += spikeAmp * (1.0 - ((st - 0.4) / 0.6));
+            if (spikeAge >= spikeLen) {
+              spikeLen = 0;
+              spikeAge = 0;
+              spikeAmp = 0.0;
+            }
+          }
+          baseline = clampf(baseline, 120.0, 130.0);
+        } else {
+          int recovered = sessionSeconds - effortEnd;
+          if (recovered < 75) baseline = lastHr - (0.40 + random(0, 16) / 100.0);
+          else if (recovered < 180) baseline = lastHr - (0.18 + random(0, 10) / 100.0);
+          else baseline = lastHr - (0.08 + random(0, 6) / 100.0);
+          if (baseline < 88.0) baseline = 88.0 + random(0, 4);
+        }
+      } else if (sessionSeconds <= warmupEnd) {
         float t = (float)sessionSeconds / (float)warmupEnd;
         baseline = startHr + (warmupPeak - startHr) * smoothstep(t);
       } else if (sessionSeconds <= buildEnd) {
@@ -209,18 +332,24 @@ void loop() {
       }
 
       micro += random(-12, 13) / 10.0;
-      micro = clampf(micro, -3.0, 3.0);
+      micro = clampf(micro, walkMode ? -2.0 : -3.0, walkMode ? 2.0 : 3.0);
 
       float target = baseline + micro;
       if (sessionSeconds > effortEnd) {
         target = baseline + clampf(micro, -1.2, 0.4);
         if (target > lastHr - 0.08 && lastHr > 92.0) target = lastHr - 0.12;
       }
-      if (!inPeak) target = clampf(target, 80.0, sessionMax - 4.0);
-      else target = clampf(target, 80.0, sessionMax);
+      if (walkMode && sessionSeconds > warmupEnd && sessionSeconds <= effortEnd) {
+        target = clampf(target, 120.0, 130.0);
+      } else if (!inPeak) {
+        target = clampf(target, 80.0, sessionMax - 4.0);
+      } else {
+        target = clampf(target, 80.0, sessionMax);
+      }
 
       float maxStep = inPeak ? 2.5 : 1.6;
       if (sessionSeconds > effortEnd) maxStep = 0.9;
+      if (walkMode && sessionSeconds <= effortEnd) maxStep = 0.8;
       float delta = target - lastHr;
       if (delta > maxStep) target = lastHr + maxStep;
       if (delta < -maxStep) target = lastHr - maxStep;
@@ -238,6 +367,9 @@ void loop() {
             next = (int)broadcastHR - dir;
           }
           next = (int)clampf((float)next, 80.0, sessionMax);
+          if (walkMode && sessionSeconds > warmupEnd && sessionSeconds <= effortEnd) {
+            next = (int)clampf((float)next, 120.0, 130.0);
+          }
           if (next == (int)lastBroadcast) next = (int)lastBroadcast + (dir == 1 ? -1 : 1);
           broadcastHR = (uint8_t)clampf((float)next, 80.0, sessionMax);
           sameStreak = 0;
@@ -245,13 +377,21 @@ void loop() {
       } else {
         sameStreak = 0;
       }
+      if (walkMode && sessionSeconds > warmupEnd && sessionSeconds <= effortEnd) {
+        broadcastHR = (uint8_t)clampf((float)broadcastHR, 120.0, 130.0);
+      }
       lastBroadcast = broadcastHR;
 
       float targetSpeed = 0.0;
       float maxSpeedStep = 0.07;
       if (sessionSeconds <= effortEnd) {
-        targetSpeed = hrToSpeed((float)broadcastHR);
-        maxSpeedStep = 0.08;
+        if (walkMode) {
+          targetSpeed = hrToWalkSpeed((float)broadcastHR);
+          maxSpeedStep = 0.04;
+        } else {
+          targetSpeed = hrToSpeed((float)broadcastHR);
+          maxSpeedStep = 0.08;
+        }
       } else {
         targetSpeed = 0.0;
         maxSpeedStep = 0.30;
@@ -266,7 +406,11 @@ void loop() {
 
       uint8_t cadence = 0;
       if (speedMps > 0.5) {
-        cadence = (uint8_t)clampf(74.0 + speedMps * 6.2 + random(-1, 2), 70.0, 96.0);
+        if (walkMode) {
+          cadence = (uint8_t)clampf(52.0 + speedMps * 7.0 + random(-1, 2), 50.0, 68.0);
+        } else {
+          cadence = (uint8_t)clampf(74.0 + speedMps * 6.2 + random(-1, 2), 70.0, 96.0);
+        }
       }
       bool running = speedMps >= 2.05;
       uint16_t spd256 = (uint16_t)(speedMps * 256.0 + 0.5);
