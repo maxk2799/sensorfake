@@ -1,0 +1,13 @@
+App(
+    appid="sensorfake",
+    name="SensorFake",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="sensorfake_app",
+    requires=["gui", "bt"],
+    stack_size=4 * 1024,
+    fap_category="Bluetooth",
+    fap_icon="sensorfake_10px.png",
+    fap_version="1.0",
+    fap_author="maxk2799",
+    fap_description="Simulated BLE heart rate and running pace sensor",
+)
