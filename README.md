@@ -16,26 +16,36 @@ There are two versions of the same simulation, one folder per device:
 
 ### 1. Install the app
 
-Pick one of the two ways.
+The Flipper needs the latest official firmware (qFlipper or the Flipper mobile
+app will offer the update). The ready-made app is built for release 1.5.1
+(app API 88.2).
 
-#### Option A: copy the ready-made app (no tools needed)
+#### Option A: one click from the browser (easiest)
 
-[`flipper/prebuilt/sensorfake.fap`](flipper/prebuilt/sensorfake.fap) is built
-for the official firmware, release 1.5.1 (app API 88.2).
+1. Connect the Flipper to a computer by USB and close qFlipper.
+2. In **Chrome** or **Edge**, open
+   **<https://maxk2799.github.io/sensorfake/flipper/install.html>**.
+3. Press **Install on my Flipper**, pick **Flipper** in the list the browser
+   shows, and press **Connect**.
 
-1. Update the Flipper to the latest official firmware (qFlipper or the Flipper
-   mobile app will offer the update).
-2. Download `sensorfake.fap` from the link above (on GitHub, open the file and
-   press **Download raw file**).
-3. Connect the Flipper to your computer by USB and open
+The page copies the app to the right folder on the SD card and starts it.
+Nothing has to be installed on the computer. It does not work on phones, or in
+Safari or Firefox.
+
+#### Option B: copy the file by hand
+
+1. Download
+   [`sensorfake.fap`](https://github.com/maxk2799/sensorfake/raw/main/flipper/prebuilt/sensorfake.fap)
+   (the link downloads the file directly).
+2. Connect the Flipper to your computer by USB and open
    [qFlipper](https://flipperzero.one/update).
-4. Open the **File manager** tab and go to `SD Card` → `apps` → `Bluetooth`.
-5. Drag `sensorfake.fap` into that folder.
+3. Open the **File manager** tab and go to `SD Card` → `apps` → `Bluetooth`.
+4. Drag `sensorfake.fap` into that folder.
 
-No computer nearby? Put the SD card in a card reader and copy the file to
-`apps/Bluetooth/` on the card instead.
+Without qFlipper: put the SD card in a card reader and copy the file to
+`apps/Bluetooth/` on the card.
 
-#### Option B: build it yourself
+#### Option C: build it yourself
 
 Use this if the Flipper refuses to open the app ("Outdated App", "Outdated
 Firmware" or "Missing Imports"), if you run a custom firmware, or if you
@@ -64,7 +74,7 @@ changed the code.
 
 The first run downloads the Flipper SDK, which takes a few minutes. To only
 build the file, run `ufbt`; the result is `flipper/dist/sensorfake.fap`, which
-you can copy as in option A.
+you can copy as in option B.
 
 On a custom firmware (Momentum, Unleashed, ...), point `ufbt` at that
 firmware's SDK first, as described in the firmware's own documentation, then
@@ -140,7 +150,7 @@ phone's Bluetooth off and on.
 
 To change the built-in default instead, edit `SENSORFAKE_NAME_DEFAULT` in
 [`flipper/sensorfake_name.h`](flipper/sensorfake_name.h) and rebuild
-(option B).
+(option C).
 
 ### Good to know
 
@@ -160,7 +170,9 @@ To change the built-in default instead, edit `SENSORFAKE_NAME_DEFAULT` in
 
 | Problem | Fix |
 | --- | --- |
-| "Outdated App", "Outdated Firmware" or "Missing Imports" when opening | Update the Flipper firmware, or build the app yourself (option B) |
+| "Outdated App", "Outdated Firmware" or "Missing Imports" when opening | Update the Flipper firmware, or build the app yourself (option C) |
+| The install page cannot open the Flipper | Close qFlipper (only one program can use the Flipper at a time), unplug the Flipper, plug it back in and try again |
+| The install page shows no Flipper in the list | Use a USB cable that carries data, unlock the Flipper, and use Chrome or Edge on a computer |
 | Status shows **No Bluetooth** | The radio firmware is missing or damaged: reinstall the firmware with qFlipper |
 | The sensor is not in the app's list | Make sure the status shows **Advertising**, close the Flipper mobile app, and scan again |
 | The fitness app connects but shows the old device | Remove the sensor in the fitness app and add it again |
@@ -188,3 +200,5 @@ To change the Bluetooth name, edit the text in the line
 | `flipper/sensorfake_name.c` | Reads the Bluetooth name from the contents of `name.txt` |
 | `flipper/sensorfake.c` | The app: screen, buttons, one-second timer, name file |
 | `flipper/application.fam` | App manifest for the Flipper build system |
+| `flipper/install.html` | The one-click install page (uses the browser's Web Serial support) |
+| `flipper/prebuilt/sensorfake.fap` | The ready-made app |

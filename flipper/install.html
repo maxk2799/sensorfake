@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Install SensorFake on a Flipper Zero</title>
+<style>
+  :root {
+    --bg: #f6f4f1;
+    --card: #ffffff;
+    --text: #1d1b19;
+    --muted: #6b655f;
+    --line: #e2ddd6;
+    --accent: #e8590c;
+    --accent-text: #ffffff;
+    --ok: #2b8a3e;
+    --bad: #c92a2a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161514;
+      --card: #211f1d;
+      --text: #f1eeea;
+      --muted: #a39c94;
+      --line: #35312d;
+      --accent: #ff7a2f;
+      --accent-text: #1a1210;
+      --ok: #69db7c;
+      --bad: #ff8787;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px 16px 48px;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 560px; margin: 0 auto; }
+  h1 { font-size: 1.6rem; line-height: 1.2; margin: 8px 0 4px; }
+  h2 { font-size: 1.05rem; margin: 0 0 8px; }
+  p { margin: 0 0 12px; }
+  .lead { color: var(--muted); margin-bottom: 20px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  ol { margin: 0; padding-left: 22px; }
+  li { margin-bottom: 6px; }
+  button {
+    font: inherit;
+    font-weight: 600;
+    border: 0;
+    border-radius: 10px;
+    padding: 14px 20px;
+    width: 100%;
+    background: var(--accent);
+    color: var(--accent-text);
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+  button.secondary {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--line);
+    font-weight: 500;
+    margin-top: 10px;
+  }
+  #steps { list-style: none; padding: 0; margin: 16px 0 0; }
+  #steps li { display: flex; gap: 10px; align-items: baseline; color: var(--muted); }
+  #steps li .mark { width: 1.2em; flex: none; text-align: center; }
+  #steps li.active { color: var(--text); font-weight: 600; }
+  #steps li.done { color: var(--text); }
+  #steps li.done .mark { color: var(--ok); }
+  #steps li.failed { color: var(--bad); }
+  progress { width: 100%; height: 8px; margin-top: 12px; accent-color: var(--accent); }
+  #message { margin: 16px 0 0; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); }
+  #message.ok { border-color: var(--ok); }
+  #message.bad { border-color: var(--bad); }
+  #message p:last-child, #message ol:last-child { margin-bottom: 0; }
+  .small { font-size: 0.9rem; color: var(--muted); }
+  [hidden] { display: none !important; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Install SensorFake</h1>
+  <p class="lead">Puts the SensorFake app on your Flipper Zero, straight from this page.</p>
+
+  <div class="card" id="unsupported" hidden>
+    <h2>This browser cannot talk to a Flipper</h2>
+    <p>Open this page in <strong>Chrome</strong> or <strong>Edge</strong> on a computer
+      (Windows, Mac or Linux). Phones, Safari and Firefox do not support it.</p>
+    <p class="small">You can also copy the app by hand: see the README of the project.</p>
+  </div>
+
+  <div class="card" id="installer">
+    <h2>Before you start</h2>
+    <ol>
+      <li>Connect the Flipper to this computer with a USB cable.</li>
+      <li>Close qFlipper if it is open.</li>
+      <li>Leave the Flipper on its main screen.</li>
+    </ol>
+
+    <p style="margin-top:16px">
+      <button id="install">Install on my Flipper</button>
+    </p>
+    <p class="small">The browser will ask which device to use. Pick <strong>Flipper</strong> and press Connect.</p>
+
+    <ul id="steps" hidden>
+      <li data-step="connect"><span class="mark">•</span><span>Connect to the Flipper</span></li>
+      <li data-step="download"><span class="mark">•</span><span>Get the app</span></li>
+      <li data-step="card"><span class="mark">•</span><span>Check the SD card</span></li>
+      <li data-step="copy"><span class="mark">•</span><span>Copy the app</span></li>
+      <li data-step="verify"><span class="mark">•</span><span>Check the copy</span></li>
+      <li data-step="launch"><span class="mark">•</span><span>Start SensorFake</span></li>
+    </ul>
+    <progress id="progress" value="0" max="1" hidden></progress>
+    <div id="message" hidden></div>
+
+    <div id="manual" hidden>
+      <p class="small" style="margin-top:16px">Could not download the app automatically. If you have
+        <code>sensorfake.fap</code> on this computer, choose it here and press Install again.</p>
+      <input type="file" id="file" accept=".fap">
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>After installing</h2>
+    <ol>
+      <li>On the Flipper: <strong>Apps → Bluetooth → SensorFake</strong>.</li>
+      <li>In your fitness app, add a heart rate sensor and pick <strong>Polar Sense 1234</strong>.</li>
+      <li><strong>OK</strong> switches between walk and run. <strong>Back</strong> quits.</li>
+    </ol>
+  </div>
+</main>
+
+<script>
+'use strict';
+
+/* Where the app goes on the Flipper */
+const APP_DIRS = ['/ext/apps', '/ext/apps/Bluetooth'];
+const APP_PATH = '/ext/apps/Bluetooth/sensorfake.fap';
+
+/* Where to get the app from: next to this page when it is hosted, otherwise
+ * straight from the repository */
+const APP_SOURCES = [
+  'prebuilt/sensorfake.fap',
+  'https://raw.githubusercontent.com/maxk2799/sensorfake/main/flipper/prebuilt/sensorfake.fap',
+];
+
+/* USB IDs of the Flipper Zero serial port */
+const FLIPPER_USB = { usbVendorId: 0x0483, usbProductId: 0x5740 };
+
+const PROMPT = '>: ';
+const CHUNK_SIZE = 8192;
+
+class InstallError extends Error {}
+
+/* Talks to the Flipper's command line over USB serial, the same way the
+ * official Flipper scripts do (scripts/flipper/storage.py in the firmware) */
+class FlipperCli {
+  constructor(port) {
+    this.port = port;
+    this.buffer = '';
+    this.wake = null;
+    this.closed = false;
+    this.readError = null;
+  }
+
+  async open() {
+    await this.port.open({ baudRate: 230400 });
+    try {
+      await this.port.setSignals({ dataTerminalReady: true });
+    } catch (e) {
+      /* Not every platform lets us set it; opening the port is normally enough */
+    }
+    this.writer = this.port.writable.getWriter();
+    this.reader = this.port.readable.getReader();
+    this.pump = this.readLoop();
+  }
+
+  async readLoop() {
+    try {
+      for (;;) {
+        const { value, done } = await this.reader.read();
+        if (done) break;
+        /* One character per byte: the replies we care about are ASCII */
+        let text = '';
+        for (const byte of value) text += String.fromCharCode(byte);
+        this.buffer += text;
+        if (this.wake) this.wake();
+      }
+    } catch (e) {
+      this.readError = e;
+    }
+    this.closed = true;
+    if (this.wake) this.wake();
+  }
+
+  /* Wait for any of the markers. Returns the text before it and the marker,
+   * and drops both from the buffer. */
+  async readUntil(markers, timeoutMs) {
+    if (typeof markers === 'string') markers = [markers];
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      let best = -1;
+      let found = null;
+      for (const marker of markers) {
+        const at = this.buffer.indexOf(marker);
+        if (at >= 0 && (best < 0 || at < best)) {
+          best = at;
+          found = marker;
+        }
+      }
+      if (found !== null) {
+        const text = this.buffer.slice(0, best);
+        this.buffer = this.buffer.slice(best + found.length);
+        return { text, marker: found };
+      }
+      if (this.closed) throw new InstallError('The connection to the Flipper was lost. Check the cable and try again.');
+      const left = deadline - Date.now();
+      if (left <= 0) throw new InstallError('The Flipper stopped answering. Unplug it, plug it back in and try again.');
+      await new Promise((resolve) => {
+        const timer = setTimeout(resolve, left);
+        this.wake = () => {
+          clearTimeout(timer);
+          resolve();
+        };
+      });
+      this.wake = null;
+    }
+  }
+
+  async send(text) {
+    const bytes = new Uint8Array(text.length);
+    for (let i = 0; i < text.length; i++) bytes[i] = text.charCodeAt(i) & 0xff;
+    await this.writer.write(bytes);
+  }
+
+  /* Get to a known state: a fresh prompt with nothing left in the buffer */
+  async sync() {
+    try {
+      /* The Flipper greets every new connection and then shows a prompt */
+      await this.readUntil(PROMPT, 2000);
+    } catch (e) {
+      if (this.closed) throw e;
+    }
+    this.buffer = '';
+    await this.send('device_info\r');
+    await this.readUntil('hardware_model', 5000);
+    await this.readUntil(PROMPT, 5000);
+  }
+
+  /* Run a command and return what it printed */
+  async command(line, timeoutMs = 10000) {
+    await this.send(line + '\r');
+    const { text } = await this.readUntil(PROMPT, timeoutMs);
+    /* The first line is the echo of what we typed */
+    const eol = text.indexOf('\r\n');
+    return eol < 0 ? '' : text.slice(eol + 2).trim();
+  }
+
+  static storageError(output) {
+    const match = /Storage error: ([^\r\n]*)/.exec(output);
+    return match ? match[1].trim() : null;
+  }
+
+  async stat(path) {
+    return this.command(`storage stat "${path}"`);
+  }
+
+  async mkdir(path) {
+    const error = FlipperCli.storageError(await this.command(`storage mkdir "${path}"`));
+    if (error && error !== 'file/dir already exist') {
+      throw new InstallError(`Could not create ${path} on the Flipper: ${error}.`);
+    }
+  }
+
+  async remove(path) {
+    const error = FlipperCli.storageError(await this.command(`storage remove "${path}"`));
+    if (error && error !== 'file/dir not exist') {
+      throw new InstallError(`Could not replace the old app on the Flipper: ${error}.`);
+    }
+  }
+
+  async writeFile(path, data, onProgress) {
+    for (let offset = 0; offset < data.length; offset += CHUNK_SIZE) {
+      const chunk = data.subarray(offset, offset + CHUNK_SIZE);
+      await this.send(`storage write_chunk "${path}" ${chunk.length}\r`);
+      /* The Flipper says Ready when it is waiting for the bytes */
+      const ready = await this.readUntil(['Ready\r\n', 'Storage error:', PROMPT], 60000);
+      if (ready.marker !== 'Ready\r\n') {
+        let reason = 'the Flipper refused the file';
+        if (ready.marker === 'Storage error:') {
+          const rest = await this.readUntil(PROMPT, 10000);
+          reason = rest.text.trim();
+        }
+        throw new InstallError(`Could not write the app to the SD card: ${reason}.`);
+      }
+      await this.writer.write(chunk);
+      const after = await this.readUntil(PROMPT, 60000);
+      const error = FlipperCli.storageError(after.text);
+      if (error) throw new InstallError(`Could not write the app to the SD card: ${error}.`);
+      onProgress(Math.min(offset + chunk.length, data.length) / data.length);
+    }
+  }
+
+  async close() {
+    try { await this.reader.cancel(); } catch (e) { /* already closed */ }
+    try { await this.pump; } catch (e) { /* ignore */ }
+    try { this.reader.releaseLock(); } catch (e) { /* ignore */ }
+    try { this.writer.releaseLock(); } catch (e) { /* ignore */ }
+    try { await this.port.close(); } catch (e) { /* ignore */ }
+  }
+}
+
+async function fetchApp() {
+  for (const url of APP_SOURCES) {
+    try {
+      const response = await fetch(url, { cache: 'no-store' });
+      if (!response.ok) continue;
+      const data = new Uint8Array(await response.arrayBuffer());
+      if (looksLikeApp(data)) return data;
+    } catch (e) {
+      /* Try the next place */
+    }
+  }
+  return null;
+}
+
+/* Flipper apps are ELF files */
+function looksLikeApp(data) {
+  return data.length > 1024 && data[0] === 0x7f && data[1] === 0x45 && data[2] === 0x4c && data[3] === 0x46;
+}
+
+/* ---------- Page ---------- */
+
+const $ = (id) => document.getElementById(id);
+const stepItems = {};
+document.querySelectorAll('#steps li').forEach((li) => (stepItems[li.dataset.step] = li));
+let currentStep = null;
+
+function resetSteps() {
+  for (const li of Object.values(stepItems)) {
+    li.className = '';
+    li.querySelector('.mark').textContent = '•';
+  }
+  currentStep = null;
+}
+
+function startStep(name) {
+  finishStep();
+  currentStep = name;
+  stepItems[name].className = 'active';
+  stepItems[name].querySelector('.mark').textContent = '…';
+}
+
+function finishStep(failed = false) {
+  if (!currentStep) return;
+  const li = stepItems[currentStep];
+  li.className = failed ? 'failed' : 'done';
+  li.querySelector('.mark').textContent = failed ? '✕' : '✓';
+  currentStep = null;
+}
+
+function skipStep(name) {
+  stepItems[name].className = '';
+  stepItems[name].querySelector('.mark').textContent = '–';
+}
+
+function showMessage(kind, html) {
+  const box = $('message');
+  box.className = kind;
+  box.innerHTML = html;
+  box.hidden = false;
+}
+
+function escapeHtml(text) {
+  return String(text).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+}
+
+async function chosenFile() {
+  const file = $('file').files[0];
+  if (!file) return null;
+  const data = new Uint8Array(await file.arrayBuffer());
+  if (!looksLikeApp(data)) throw new InstallError('That file is not a Flipper app (.fap).');
+  return data;
+}
+
+async function install() {
+  const button = $('install');
+  button.disabled = true;
+  $('message').hidden = true;
+  $('steps').hidden = false;
+  $('progress').hidden = true;
+  resetSteps();
+
+  let cli = null;
+  try {
+    /* Has to be the first thing after the click: the browser only shows the
+     * device picker in direct response to it */
+    startStep('connect');
+    let port;
+    try {
+      port = await navigator.serial.requestPort({ filters: [FLIPPER_USB] });
+    } catch (e) {
+      throw new InstallError(
+        'No Flipper was chosen. If the list was empty, check the USB cable, unlock the Flipper and try again.');
+    }
+    cli = new FlipperCli(port);
+    try {
+      await cli.open();
+    } catch (e) {
+      cli = null;
+      throw new InstallError(
+        'Could not open the Flipper. Close qFlipper and any other program using it, then try again.');
+    }
+    await cli.sync();
+
+    startStep('download');
+    const app = (await chosenFile()) || (await fetchApp());
+    if (!app) {
+      $('manual').hidden = false;
+      throw new InstallError('Could not download the app. Check your internet connection and try again.');
+    }
+
+    startStep('card');
+    const card = await cli.stat('/ext');
+    if (FlipperCli.storageError(card) || !card.includes('Storage')) {
+      throw new InstallError('The Flipper has no usable SD card. Insert one (or format it on the Flipper) and try again.');
+    }
+    for (const dir of APP_DIRS) await cli.mkdir(dir);
+
+    startStep('copy');
+    $('progress').hidden = false;
+    $('progress').value = 0;
+    await cli.remove(APP_PATH);
+    await cli.writeFile(APP_PATH, app, (done) => ($('progress').value = done));
+
+    startStep('verify');
+    const info = await cli.stat(APP_PATH);
+    const size = /File, size: (\d+)b/.exec(info);
+    if (!size || Number(size[1]) !== app.length) {
+      throw new InstallError('The copy on the Flipper is incomplete. Try again.');
+    }
+
+    startStep('launch');
+    const launch = await cli.command(`loader open "${APP_PATH}"`, 15000);
+    if (launch === '') {
+      finishStep();
+      showMessage('ok', '<p><strong>Done.</strong> SensorFake is installed and running on your Flipper.</p>');
+    } else {
+      /* Usually another app is open on the Flipper; the install itself worked */
+      finishStep();
+      skipStep('launch');
+      showMessage('ok',
+        '<p><strong>Done.</strong> SensorFake is installed.</p>' +
+        '<p>Open it on the Flipper: <strong>Apps → Bluetooth → SensorFake</strong>.</p>' +
+        `<p class="small">The Flipper did not start it by itself: ${escapeHtml(launch)}</p>`);
+    }
+  } catch (e) {
+    finishStep(true);
+    const text = e instanceof InstallError ? e.message : `Something went wrong: ${e && e.message ? e.message : e}`;
+    showMessage('bad', `<p>${escapeHtml(text)}</p>`);
+  } finally {
+    $('progress').hidden = true;
+    if (cli) await cli.close();
+    button.disabled = false;
+    button.textContent = 'Install again';
+  }
+}
+
+if ('serial' in navigator) {
+  $('install').addEventListener('click', install);
+} else {
+  $('unsupported').hidden = false;
+  $('installer').hidden = true;
+}
+</script>
+</body>
+</html>
