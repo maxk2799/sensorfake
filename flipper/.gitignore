@@ -1,0 +1,4 @@
+# ufbt build output and editor config
+dist/
+.vscode/
+.clang-format
