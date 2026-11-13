@@ -1,3 +1,4 @@
+#include "sensorfake_name.h"
 #include "sensorfake_profile.h"
 #include "sensorfake_sim.h"
 
@@ -12,6 +13,9 @@
 #define TAG "SensorFake"
 
 #define SENSORFAKE_BT_KEYS_STORAGE_NAME ".sensorfake.keys"
+/* Text file on the SD card holding the Bluetooth name */
+#define SENSORFAKE_NAME_FILE            "name.txt"
+#define SENSORFAKE_NAME_FILE_MAX_SIZE   64
 #define SENSORFAKE_UPDATE_INTERVAL_MS   1000
 
 typedef enum {
@@ -32,6 +36,8 @@ typedef struct {
     FuriTimer* timer;
     FuriMutex* mutex;
     FuriHalBleProfileBase* profile;
+    SensorFakeProfileParams profile_params;
+    char device_name[SENSORFAKE_NAME_MAX_LENGTH + 1];
     uint32_t connection_count;
 
     /* Guarded by mutex: shared between the app thread and the GUI thread */
@@ -112,7 +118,8 @@ static void sensorfake_draw_callback(Canvas* canvas, void* context) {
         snprintf(text, sizeof(text), "%lu.%02lu km", meters / 1000, (meters % 1000) / 10);
         canvas_draw_str(canvas, 2, 61, text);
     } else if(app->profile) {
-        canvas_draw_str(canvas, 2, 45, "Name: " SENSORFAKE_DEVICE_NAME);
+        snprintf(text, sizeof(text), "Name: %s", app->device_name);
+        canvas_draw_str(canvas, 2, 45, text);
     } else {
         canvas_draw_str(canvas, 2, 45, "Bluetooth did not start");
     }
@@ -195,6 +202,32 @@ static void sensorfake_tick(SensorFakeApp* app) {
     sensorfake_profile_update_rsc(app->profile, rsc_packet);
 }
 
+/* Read the Bluetooth name from the name file. The first time around there is
+ * no file yet: create it with the default name, so it is easy to find and edit */
+static void sensorfake_load_name(SensorFakeApp* app) {
+    char text[SENSORFAKE_NAME_FILE_MAX_SIZE];
+    size_t text_len = 0;
+
+    Storage* storage = furi_record_open(RECORD_STORAGE);
+    File* file = storage_file_alloc(storage);
+    if(storage_file_open(
+           file, APP_DATA_PATH(SENSORFAKE_NAME_FILE), FSAM_READ, FSOM_OPEN_EXISTING)) {
+        text_len = storage_file_read(file, text, sizeof(text));
+    } else {
+        storage_file_close(file);
+        if(storage_file_open(
+               file, APP_DATA_PATH(SENSORFAKE_NAME_FILE), FSAM_WRITE, FSOM_CREATE_NEW)) {
+            storage_file_write(
+                file, SENSORFAKE_NAME_DEFAULT "\n", strlen(SENSORFAKE_NAME_DEFAULT) + 1);
+        }
+    }
+    storage_file_close(file);
+    storage_file_free(file);
+    furi_record_close(RECORD_STORAGE);
+
+    sensorfake_name_parse(text, text_len, app->device_name);
+}
+
 static void sensorfake_bt_start(SensorFakeApp* app) {
     app->bt = furi_record_open(RECORD_BT);
 
@@ -205,10 +238,11 @@ static void sensorfake_bt_start(SensorFakeApp* app) {
     /* Keep our pairings apart from the ones of the Flipper mobile app */
     bt_keys_storage_set_storage_path(app->bt, APP_DATA_PATH(SENSORFAKE_BT_KEYS_STORAGE_NAME));
 
-    app->profile = bt_profile_start(app->bt, sensorfake_profile, NULL);
+    app->profile_params.device_name = app->device_name;
+    app->profile = bt_profile_start(app->bt, sensorfake_profile, &app->profile_params);
     if(app->profile) {
         furi_hal_bt_start_advertising();
-        FURI_LOG_I(TAG, "Broadcasting as %s", SENSORFAKE_DEVICE_NAME);
+        FURI_LOG_I(TAG, "Broadcasting as %s", app->device_name);
     } else {
         FURI_LOG_E(TAG, "Failed to start BLE profile");
     }
@@ -233,6 +267,7 @@ int32_t sensorfake_app(void* p) {
     app->queue = furi_message_queue_alloc(8, sizeof(SensorFakeEvent));
     app->mutex = furi_mutex_alloc(FuriMutexTypeNormal);
 
+    sensorfake_load_name(app);
     sensorfake_sim_init(&app->sim);
     sensorfake_restart_session(app, true);
 
