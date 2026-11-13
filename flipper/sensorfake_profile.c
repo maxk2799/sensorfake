@@ -1,4 +1,5 @@
 #include "sensorfake_profile.h"
+#include "sensorfake_name.h"
 #include "sensorfake_sim.h"
 
 #include <furi.h>
@@ -157,8 +158,8 @@ static void sensorfake_profile_stop(FuriHalBleProfileBase* base) {
 
 static void
     sensorfake_profile_get_gap_config(GapConfig* config, FuriHalBleProfileParams profile_params) {
-    UNUSED(profile_params);
     furi_check(config);
+    const SensorFakeProfileParams* params = profile_params;
 
     memset(config, 0, sizeof(GapConfig));
     /* Only one service fits in the advertisement; apps look for Heart Rate */
@@ -179,11 +180,17 @@ static void
     memcpy(config->mac_address, furi_hal_version_get_ble_mac(), sizeof(config->mac_address));
     config->mac_address[2] += 2;
 
-    /* First byte is the advertisement data type, then the name */
+    /* First byte is the advertisement data type, then the name and its
+     * terminator (the config was zeroed above) */
     _Static_assert(
-        sizeof(SENSORFAKE_DEVICE_NAME) + 1 <= sizeof(config->adv_name), "Device name is too long");
+        1 + SENSORFAKE_NAME_MAX_LENGTH + 1 <= sizeof(config->adv_name),
+        "Device name does not fit");
+    const char* name = SENSORFAKE_NAME_DEFAULT;
+    if(params && params->device_name && params->device_name[0] != '\0') {
+        name = params->device_name;
+    }
     config->adv_name[0] = AD_TYPE_COMPLETE_LOCAL_NAME;
-    memcpy(&config->adv_name[1], SENSORFAKE_DEVICE_NAME, sizeof(SENSORFAKE_DEVICE_NAME));
+    strncpy(&config->adv_name[1], name, SENSORFAKE_NAME_MAX_LENGTH);
 }
 
 static const FuriHalBleProfileTemplate profile_callbacks = {

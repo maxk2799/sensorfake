@@ -6,10 +6,13 @@
 extern "C" {
 #endif
 
-/* Name shown to apps while scanning. The Flipper firmware limits the
- * advertised name to 16 characters, so the ESP32 sketch's
- * "Polar Sense 1234567" does not fit. */
-#define SENSORFAKE_DEVICE_NAME "Polar Sense 1234"
+/** Optional arguments to pass along with the profile template as
+ * FuriHalBleProfileParams */
+typedef struct {
+    /** Name shown to apps while scanning, at most SENSORFAKE_NAME_MAX_LENGTH
+     * characters. NULL for SENSORFAKE_NAME_DEFAULT */
+    const char* device_name;
+} SensorFakeProfileParams;
 
 /** BLE profile with a Heart Rate service (0x180D) and a Running Speed and
  * Cadence service (0x1814) */

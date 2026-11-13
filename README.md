@@ -5,12 +5,12 @@ Polar sensor and sends a realistic heart rate curve (warm-up, steady effort,
 cool-down) together with a matching running/walking pace, cadence and
 distance.
 
-There are two versions of the same simulation:
+There are two versions of the same simulation, one folder per device:
 
-| Version | File | Hardware |
+| Device | Folder | What is in it |
 | --- | --- | --- |
-| Arduino sketch | [`sensorfake.ino`](sensorfake.ino) | ESP32 board |
-| Flipper Zero app | [`flipper/`](flipper) | Flipper Zero |
+| Flipper Zero | [`flipper/`](flipper) | Flipper app (source and ready-made `.fap`) |
+| ESP32 board | [`esp32/`](esp32) | Arduino sketch [`sensorfake.ino`](esp32/sensorfake/sensorfake.ino) |
 
 ## Flipper Zero
 
@@ -77,7 +77,8 @@ run `ufbt launch`.
    heart rate sensor named `Polar Sense 1234`.
 3. In your fitness app or on your watch, add a heart rate sensor and pick
    `Polar Sense 1234`. Add it from inside the fitness app, not from the phone's
-   Bluetooth settings.
+   Bluetooth settings. If you changed the name (section 3 below), look for
+   that name instead.
 4. The status changes to **Connected** and a new session starts. The screen
    shows the heart rate being sent, the pace, the elapsed time and the
    distance.
@@ -95,6 +96,52 @@ and every new connection starts a fresh one.
 - **Run**: warm-up, build-up to a tempo effort around 168-175 bpm with one
   short peak, then cool-down. Roughly 23 to 44 minutes before the cool-down.
 
+### 3. Change the Bluetooth name
+
+The name fitness apps see is stored in a small text file on the Flipper's SD
+card:
+
+```
+SD Card/apps_data/sensorfake/name.txt
+```
+
+SensorFake creates this file the first time you open it, with
+`Polar Sense 1234` inside. To use another name:
+
+1. Open SensorFake once so the file exists, then quit with **Back**.
+2. On your computer, make a text file called `name.txt` whose first line is
+   the new name, for example:
+
+   ```
+   Polar H10 5678
+   ```
+
+3. Connect the Flipper by USB and open qFlipper → **File manager** →
+   `SD Card` → `apps_data` → `sensorfake`.
+4. Delete the old `name.txt` there (right-click → **Delete**), then drag your
+   new `name.txt` into the folder.
+5. Open SensorFake again. The new name is shown on the screen next to
+   **Name:** until an app connects.
+
+You can also edit the file with the file manager of the Flipper mobile app, or
+with the SD card in a card reader.
+
+Rules for the name:
+
+- At most 16 characters; anything longer is cut off. This limit comes from the
+  Flipper firmware.
+- Plain English letters, digits, spaces and punctuation only. Other characters
+  (accents, emoji) are dropped.
+- If the file is empty or missing, the name is `Polar Sense 1234` again.
+
+Phones and watches remember the old name for a while. If your fitness app
+still shows it, remove the sensor in the app and add it again, or switch the
+phone's Bluetooth off and on.
+
+To change the built-in default instead, edit `SENSORFAKE_NAME_DEFAULT` in
+[`flipper/sensorfake_name.h`](flipper/sensorfake_name.h) and rebuild
+(option B).
+
 ### Good to know
 
 - While SensorFake is open, the Flipper mobile app cannot connect to the
@@ -103,11 +150,8 @@ and every new connection starts a fresh one.
   to save battery. If your app does not find it, scan a little longer or
   reopen SensorFake.
 - The screen may switch off; the session keeps running.
-- The name is limited to 16 characters by the Flipper firmware, so it is
-  `Polar Sense 1234` instead of the sketch's `Polar Sense 1234567`. To change
-  it, edit `SENSORFAKE_DEVICE_NAME` in
-  [`flipper/sensorfake_profile.h`](flipper/sensorfake_profile.h) and rebuild
-  (option B).
+- The name is limited to 16 characters by the Flipper firmware, so the default
+  is `Polar Sense 1234` instead of the sketch's `Polar Sense 1234567`.
 - The Flipper can advertise one service only, so it advertises Heart Rate.
   The Running Speed and Cadence service (pace, cadence, distance) is there
   once an app connects.
@@ -125,12 +169,15 @@ and every new connection starts a fresh one.
 
 1. Install the [Arduino IDE](https://www.arduino.cc/en/software) and add
    ESP32 board support (**Boards Manager** → search for `esp32`).
-2. Open `sensorfake.ino`, select your ESP32 board and port, and press
-   **Upload**.
+2. Open `esp32/sensorfake/sensorfake.ino`, select your ESP32 board and port,
+   and press **Upload**.
 3. Add the sensor `Polar Sense 1234567` in your fitness app.
 
 The sketch starts in walk mode. Type `walk` or `run` in the serial monitor
 (115200 baud) to switch, or press the BOOT button to switch from walk to run.
+
+To change the Bluetooth name, edit the text in the line
+`BLEDevice::init("Polar Sense 1234567");` and upload again.
 
 ## How the Flipper app is organised
 
@@ -138,5 +185,6 @@ The sketch starts in walk mode. Type `walk` or `run` in the serial monitor
 | --- | --- |
 | `flipper/sensorfake_sim.c` | The heart rate and pace simulation, ported from the sketch. No hardware dependencies |
 | `flipper/sensorfake_profile.c` | Bluetooth LE profile: Heart Rate (0x180D) and Running Speed and Cadence (0x1814) services |
-| `flipper/sensorfake.c` | The app: screen, buttons, one-second timer |
+| `flipper/sensorfake_name.c` | Reads the Bluetooth name from the contents of `name.txt` |
+| `flipper/sensorfake.c` | The app: screen, buttons, one-second timer, name file |
 | `flipper/application.fam` | App manifest for the Flipper build system |
